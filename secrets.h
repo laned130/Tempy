@@ -1,0 +1,30 @@
+// secrets.h  —  Edit and then keep this file private! DO NOT commit to public repo!
+
+#ifndef SECRETS_H
+#define SECRETS_H
+
+// WiFi for pairing (Thermostats will use this only during pairing)
+#define WIFI_SSID     "YourWiFiSSID"
+#define WIFI_PASSWORD "YourWiFiPass"
+
+// Atom static IP or hostname used by thermostats during pairing.
+// You may optionally put the Atom's LAN IP here so thermostats can find it,
+// otherwise the thermostat shows the IP it found via mDNS/serial on first flash.
+#define ATOM_PAIRING_IP "192.168.1.50" // TODO: set to Atom IP or leave blank and paste later
+
+// MQTT broker settings (Home Assistant)
+#define MQTT_BROKER    "192.168.1.10"   // e.g. your Raspberry Pi IP
+#define MQTT_PORT      1883
+#define MQTT_USER      "mqtt_user"
+#define MQTT_PASSWORD  "mqtt_password"
+
+// 16-byte PMK for the ESP-NOW group (must be same on Atom and thermostats)
+static const uint8_t PMK[16] = {
+  0x00,0x01,0x02,0x03,0x04,0x05,0x06,0x07,0x08,0x09,0x0A,0x0B,0x0C,0x0D,0x0E,0x0F
+};
+
+// Optional: If you prefer to hard-code the Atom MAC for direct ESP-NOW send
+// set this to 6 byte hex string in your thermostat code (or leave blank and fill after first boot)
+static const uint8_t ATOM_MAC_PLACEHOLDER[6] = {0xAA,0xBB,0xCC,0xDD,0xEE,0xFF};
+
+#endif // SECRETS_H
