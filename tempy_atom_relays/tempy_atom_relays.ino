@@ -13,6 +13,7 @@
 #include <M5Atom.h>
 #include <WiFi.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <PubSubClient.h>
