@@ -8,14 +8,14 @@ See Wiki for details :-)
 
 
 
-Create symlinks for secrets.h in tempy_atom_relays\secrets.h and tempy_coreink_sensor_displays\secrets.h
+Create symbolic links for secrets.h in tempy_atom_relays\secrets.h and tempy_coreink_sensor_displays\secrets.h
 
 From the Tempy directory:
 
-Windows 11:
+Arduino IDE requires hard links in Windows 11 (run cmd as Administrator):
 
-<code>mklink tempy_atom_relays\secrets.h secrets.h
-      mklink tempy_coreink_sensor_displays\secrets.h secrets.h
+<code>mklink /H tempy_atom_relays\secrets.h secrets.h
+      mklink /H tempy_coreink_sensor_displays\secrets.h secrets.h
 </code>
 
 Linux:
