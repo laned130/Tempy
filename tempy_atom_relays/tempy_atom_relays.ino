@@ -258,7 +258,7 @@ void handlePair() {
   out["atom_mac"] = amac;
   char buf[128];
   size_t n = serializeJson(out, buf);
-  server.send(200, "application/json", buf, n);
+  server.send(200, "application/json", buf);
   Serial.printf("Paired thermostat into slot %d mac %s\n", slot, macs);
 }
 
