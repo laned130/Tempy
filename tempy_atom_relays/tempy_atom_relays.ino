@@ -248,7 +248,7 @@ void handlePair() {
 
   // respond with atom mac
   uint8_t mymac[6];
-  esp_read_mac(mymac, ESP_MAC_WIFI_STA);
+  esp_wifi_get_mac(WIFI_IF_STA, mymac);
   char amac[32];
   sprintf(amac, "%02x:%02x:%02x:%02x:%02x:%02x",
           mymac[0],mymac[1],mymac[2],mymac[3],mymac[4],mymac[5]);
@@ -363,7 +363,7 @@ void setup() {
     Serial.println("esp_now_init failed");
   }
   esp_now_set_pmk(LOCAL_PMK);
-  esp_now_register_recv_cb(onDataRecv);
+  esp_now_register_recv_cb((esp_now_recv_cb_t)onDataRecv);
   esp_now_register_send_cb(onDataSent);
 
   // add stored peers
