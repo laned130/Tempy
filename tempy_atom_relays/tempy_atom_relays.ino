@@ -13,6 +13,7 @@
 #include <M5Atom.h>
 #include <WiFi.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <Preferences.h>
 #include <WebServer.h>
 #include <PubSubClient.h>
@@ -68,6 +69,12 @@ String macToString(const uint8_t *mac) {
   return String(buf);
 }
 
+String prefKey(const char *prefix, int idx) {
+  String key(prefix);
+  key += idx;
+  return key;
+}
+
 void addEncryptedPeerFromStored(int idx) {
   if (!peerConfigured[idx]) return;
   esp_now_peer_info_t peer = {};
@@ -86,8 +93,10 @@ void addEncryptedPeerFromStored(int idx) {
 
 void persistPeer(int idx) {
   prefs.begin("peers", false);
-  prefs.putBytes(String("mac")+String(idx).c_str(), thermMacs[idx], 6);
-  prefs.putBytes(String("lmk")+String(idx).c_str(), lmks[idx], 16);
+  String macKey = prefKey("mac", idx);
+  String lmkKey = prefKey("lmk", idx);
+  prefs.putBytes(macKey.c_str(), thermMacs[idx], 6);
+  prefs.putBytes(lmkKey.c_str(), lmks[idx], 16);
   prefs.end();
 }
 
@@ -129,7 +138,8 @@ void onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
   }
   lastRecvCounter[idx] = msg.counter;
   prefs.begin("counters", false);
-  prefs.putUInt(String("c_r")+String(idx).c_str(), lastRecvCounter[idx]);
+  String counterKey = prefKey("c_r", idx);
+  prefs.putUInt(counterKey.c_str(), lastRecvCounter[idx]);
   prefs.end();
 
   if (msg.type == 1) {
@@ -140,7 +150,8 @@ void onDataRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
     // target_update
     lastTargets[idx] = (int)msg.target;
     prefs.begin("tempy", false);
-    prefs.putInt(String("t")+String(idx).c_str(), lastTargets[idx]);
+    String targetKey = prefKey("t", idx);
+    prefs.putInt(targetKey.c_str(), lastTargets[idx]);
     prefs.end();
 
     // reply current heating state
@@ -237,7 +248,7 @@ void handlePair() {
 
   // respond with atom mac
   uint8_t mymac[6];
-  esp_read_mac(mymac, ESP_MAC_WIFI_STA);
+  esp_wifi_get_mac(WIFI_IF_STA, mymac);
   char amac[32];
   sprintf(amac, "%02x:%02x:%02x:%02x:%02x:%02x",
           mymac[0],mymac[1],mymac[2],mymac[3],mymac[4],mymac[5]);
@@ -247,7 +258,7 @@ void handlePair() {
   out["atom_mac"] = amac;
   char buf[128];
   size_t n = serializeJson(out, buf);
-  server.send(200, "application/json", buf, n);
+  server.send(200, "application/json", buf);
   Serial.printf("Paired thermostat into slot %d mac %s\n", slot, macs);
 }
 
@@ -325,9 +336,11 @@ void setup() {
   // init arrays from prefs
   for (int i=0;i<N_THERM;i++) {
     // try to load mac and lmk
-    if (prefs.isKey(String("mac")+String(i).c_str()) && prefs.isKey(String("lmk")+String(i).c_str())) {
-      prefs.getBytes(String("mac")+String(i).c_str(), thermMacs[i], 6);
-      prefs.getBytes(String("lmk")+String(i).c_str(), lmks[i], 16);
+    String macKey = prefKey("mac", i);
+    String lmkKey = prefKey("lmk", i);
+    if (prefs.isKey(macKey.c_str()) && prefs.isKey(lmkKey.c_str())) {
+      prefs.getBytes(macKey.c_str(), thermMacs[i], 6);
+      prefs.getBytes(lmkKey.c_str(), lmks[i], 16);
       peerConfigured[i] = true;
       Serial.printf("Loaded peer %d: ", i); printHex(thermMacs[i],6);
     } else {
@@ -335,8 +348,10 @@ void setup() {
       memset(lmks[i], 0, 16);
       peerConfigured[i] = false;
     }
-    lastTargets[i] = prefs.getInt(String("t")+String(i).c_str(), 20);
-    lastRecvCounter[i] = prefs.getUInt(String("c_r")+String(i).c_str(), 0);
+    String targetKey = prefKey("t", i);
+    String counterKey = prefKey("c_r", i);
+    lastTargets[i] = prefs.getInt(targetKey.c_str(), 20);
+    lastRecvCounter[i] = prefs.getUInt(counterKey.c_str(), 0);
     relayState[i] = false;
     pinMode(relayPins[i], OUTPUT);
     digitalWrite(relayPins[i], LOW);
@@ -348,7 +363,7 @@ void setup() {
     Serial.println("esp_now_init failed");
   }
   esp_now_set_pmk(LOCAL_PMK);
-  esp_now_register_recv_cb(onDataRecv);
+  esp_now_register_recv_cb((esp_now_recv_cb_t)onDataRecv);
   esp_now_register_send_cb(onDataSent);
 
   // add stored peers

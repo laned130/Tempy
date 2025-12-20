@@ -1,7 +1,7 @@
 /* tempy_coreink_pairing_secure.ino
    CoreInk thermostat:
    - SHT40 high precision
-   - Pairing via WiFi (hold BtnB during boot to pair)
+   - Pairing via WiFi (hold BtnMID during boot to pair)
    - Generates LMK on pairing; POSTs to Atom pairing endpoint
    - Uses PMK + per-peer LMK for ESP-NOW encryption after pairing
    - Includes 32-bit message counters for replay protection
@@ -16,7 +16,10 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <esp_now.h>
+#include <esp_wifi.h>
 #include <Preferences.h>
+
+Ink_Sprite inkSprite(&M5.M5Ink);
 
 // ---------- CONFIG ----------
 #define SETPOINT_DEFAULT 20
@@ -215,7 +218,7 @@ bool doPairingProcedure() {
 
   // get our MAC
   uint8_t mymac[6];
-  esp_read_mac(mymac, ESP_MAC_WIFI_STA);
+  esp_wifi_get_mac(WIFI_IF_STA, mymac);
   String macStr = macToString(mymac);
 
   // Build JSON
@@ -282,8 +285,10 @@ bool doPairingProcedure() {
 void setup() {
   Serial.begin(115200);
   M5.begin();
-  M5.Ink.begin();
-  M5.Ink.createSprite(250,300);
+  M5.M5Ink.begin();
+  M5.M5Ink.clear();
+  inkSprite.creatSprite(0,0,250,300);
+  inkSprite.clear();
 
   // prefs load
   prefs.begin("pair", false);
@@ -306,7 +311,7 @@ void setup() {
 
   // SHT40
   if (!sht.begin()) { Serial.println("SHT40 not found"); }
-  sht.setPrecision(SHT4X_HIGH);
+  sht.setPrecision(SHT4X_HIGH_PRECISION);
 
   // Load target temp
   prefs.begin("tempy", false);
@@ -315,7 +320,7 @@ void setup() {
 
   // If button B held at boot -> pairing mode
   M5.update();
-  bool pairingPressed = M5.BtnB.isPressed(); // hold while powering
+  bool pairingPressed = M5.BtnMID.isPressed(); // hold while powering
   if (pairingPressed) {
     if (doPairingProcedure()) {
       // after pairing, init ESP-NOW with keys
@@ -330,7 +335,7 @@ void setup() {
   if (esp_now_init() != ESP_OK) {
     Serial.println("esp_now_init failed");
   }
-  esp_now_register_recv_cb(onDataRecv);
+  esp_now_register_recv_cb((esp_now_recv_cb_t)onDataRecv);
   esp_now_register_send_cb(onDataSent);
 
   // set PMK if defined
@@ -365,33 +370,34 @@ void setup() {
 
   // initial display
   // draw normal screen
-  M5.Ink.clear();
-  M5.Ink.setTextSize(6);
-  if (!isnan(temperatureVal)) M5.Ink.printf("%.1fC", temperatureVal);
-  else M5.Ink.printf("--.-C");
-  M5.Ink.setTextSize(2);
-  M5.Ink.setCursor(10,140);
-  M5.Ink.printf("Target: %dC", targetTemp);
-  M5.Ink.setTextSize(1);
-  M5.Ink.setCursor(10,200);
-  if (!isnan(humidityVal)) M5.Ink.printf("Hum: %d%%", (int)round(humidityVal));
-  else M5.Ink.printf("Hum: --%%");
+  M5.M5Ink.clear();
+  inkSprite.clear();
+  inkSprite.setTextSize(6);
+  if (!isnan(temperatureVal)) inkSprite.printf("%.1fC", temperatureVal);
+  else inkSprite.printf("--.-C");
+  inkSprite.setTextSize(2);
+  inkSprite.setCursor(10,140);
+  inkSprite.printf("Target: %dC", targetTemp);
+  inkSprite.setTextSize(1);
+  inkSprite.setCursor(10,200);
+  if (!isnan(humidityVal)) inkSprite.printf("Hum: %d%%", (int)round(humidityVal));
+  else inkSprite.printf("Hum: --%%");
   // battery icon
   float batt = readBatteryVoltage();
-  M5.Ink.setCursor(4,6);
-  if (batt > 3.90) M5.Ink.printf("[####]");
-  else if (batt > 3.75) M5.Ink.printf("[### ]");
-  else if (batt > 3.60) M5.Ink.printf("[##  ]");
-  else M5.Ink.printf("[!   ]");
+  inkSprite.setCursor(4,6);
+  if (batt > 3.90) inkSprite.printf("[####]");
+  else if (batt > 3.75) inkSprite.printf("[### ]");
+  else if (batt > 3.60) inkSprite.printf("[##  ]");
+  else inkSprite.printf("[!   ]");
   // heating indicator
-  M5.Ink.setCursor(180,6);
+  inkSprite.setCursor(180,6);
   char c = ' ';
   if (!heatingReplyReceived) c = '?';
   else if (heatingActive) c = 'H';
-  M5.Ink.setTextSize(2);
-  M5.Ink.printf("%c", c);
+  inkSprite.setTextSize(2);
+  inkSprite.printf("%c", c);
 
-  M5.Ink.pushSprite();
+  inkSprite.pushSprite();
   delay(200);
 }
 
@@ -403,33 +409,34 @@ void goToSleep() {
 void loop() {
   M5.update();
 
-  bool anyPressed = M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed();
+  bool anyPressed = M5.BtnUP.wasPressed() || M5.BtnMID.wasPressed() || M5.BtnDOWN.wasPressed();
   if (anyPressed) {
     if (!inSetpointMode) {
       inSetpointMode = true;
       setpointStartMs = millis();
       // show inverted setpoint
-      M5.Ink.clear();
-      M5.Ink.fillRect(0,0,250,300,INK_COLOR_BLACK);
-      M5.Ink.setTextColor(INK_COLOR_WHITE);
-      M5.Ink.setTextSize(3);
-      M5.Ink.setCursor(10,30);
-      M5.Ink.printf("Set Target");
-      M5.Ink.setTextSize(6);
-      M5.Ink.setCursor(10,80);
-      M5.Ink.printf("%dC", targetTemp);
-      M5.Ink.setTextSize(2);
-      M5.Ink.setCursor(10,200);
-      M5.Ink.printf("A = -1C  C = +1C");
-      M5.Ink.pushSprite();
-      M5.Ink.setTextColor(INK_COLOR_BLACK);
+      M5.M5Ink.clear();
+      inkSprite.clear();
+      inkSprite.fillRect(0,0,250,300,BLACK);
+      inkSprite.setTextColor(WHITE, BLACK);
+      inkSprite.setTextSize(3);
+      inkSprite.setCursor(10,30);
+      inkSprite.printf("Set Target");
+      inkSprite.setTextSize(6);
+      inkSprite.setCursor(10,80);
+      inkSprite.printf("%dC", targetTemp);
+      inkSprite.setTextSize(2);
+      inkSprite.setCursor(10,200);
+      inkSprite.printf("A = -1C  C = +1C");
+      inkSprite.pushSprite();
+      inkSprite.setTextColor(BLACK, WHITE);
       // query heating while in setpoint mode
       if (haveLMK) requestHeatingStateWait(HEATING_REPLY_TIMEOUT_MS);
     } else {
       // already in setpoint mode: adjust
       bool changed = false;
-      if (M5.BtnA.wasPressed()) { targetTemp--; changed = true; }
-      if (M5.BtnC.wasPressed()) { targetTemp++; changed = true; }
+      if (M5.BtnUP.wasPressed()) { targetTemp--; changed = true; }
+      if (M5.BtnDOWN.wasPressed()) { targetTemp++; changed = true; }
       if (changed) {
         // persist target
         prefs.begin("tempy", false);
@@ -438,14 +445,15 @@ void loop() {
         // send update and ask for heating state
         if (haveLMK) sendTargetUpdateAndQuery();
         // refresh setpoint screen
-        M5.Ink.clear();
-        M5.Ink.fillRect(0,0,250,300,INK_COLOR_BLACK);
-        M5.Ink.setTextColor(INK_COLOR_WHITE);
-        M5.Ink.setTextSize(6);
-        M5.Ink.setCursor(10,80);
-        M5.Ink.printf("%dC", targetTemp);
-        M5.Ink.pushSprite();
-        M5.Ink.setTextColor(INK_COLOR_BLACK);
+        M5.M5Ink.clear();
+        inkSprite.clear();
+        inkSprite.fillRect(0,0,250,300,BLACK);
+        inkSprite.setTextColor(WHITE, BLACK);
+        inkSprite.setTextSize(6);
+        inkSprite.setCursor(10,80);
+        inkSprite.printf("%dC", targetTemp);
+        inkSprite.pushSprite();
+        inkSprite.setTextColor(BLACK, WHITE);
       }
       setpointStartMs = millis();
     }
@@ -462,29 +470,30 @@ void loop() {
       temperatureVal = t.temperature;
       humidityVal = h.relative_humidity;
       // display
-      M5.Ink.clear();
-      M5.Ink.setTextSize(6);
-      M5.Ink.setCursor(10,40);
-      M5.Ink.printf("%.1fC", temperatureVal);
-      M5.Ink.setTextSize(2);
-      M5.Ink.setCursor(10,140);
-      M5.Ink.printf("Target: %dC", targetTemp);
-      M5.Ink.setTextSize(1);
-      M5.Ink.setCursor(10,200);
-      M5.Ink.printf("Hum: %d%%", (int)round(humidityVal));
-      M5.Ink.setCursor(4,6);
+      M5.M5Ink.clear();
+      inkSprite.clear();
+      inkSprite.setTextSize(6);
+      inkSprite.setCursor(10,40);
+      inkSprite.printf("%.1fC", temperatureVal);
+      inkSprite.setTextSize(2);
+      inkSprite.setCursor(10,140);
+      inkSprite.printf("Target: %dC", targetTemp);
+      inkSprite.setTextSize(1);
+      inkSprite.setCursor(10,200);
+      inkSprite.printf("Hum: %d%%", (int)round(humidityVal));
+      inkSprite.setCursor(4,6);
       float batt = readBatteryVoltage();
-      if (batt > 3.90) M5.Ink.printf("[####]");
-      else if (batt > 3.75) M5.Ink.printf("[### ]");
-      else if (batt > 3.60) M5.Ink.printf("[##  ]");
-      else M5.Ink.printf("[!   ]");
-      M5.Ink.setCursor(180,6);
+      if (batt > 3.90) inkSprite.printf("[####]");
+      else if (batt > 3.75) inkSprite.printf("[### ]");
+      else if (batt > 3.60) inkSprite.printf("[##  ]");
+      else inkSprite.printf("[!   ]");
+      inkSprite.setCursor(180,6);
       char c = ' ';
       if (!heatingReplyReceived) c = '?';
       else if (heatingActive) c = 'H';
-      M5.Ink.setTextSize(2);
-      M5.Ink.printf("%c", c);
-      M5.Ink.pushSprite();
+      inkSprite.setTextSize(2);
+      inkSprite.printf("%c", c);
+      inkSprite.pushSprite();
       delay(200);
       goToSleep();
     } else {
