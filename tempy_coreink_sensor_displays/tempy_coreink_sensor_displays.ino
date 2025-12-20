@@ -218,7 +218,7 @@ bool doPairingProcedure() {
 
   // get our MAC
   uint8_t mymac[6];
-  esp_read_mac(mymac, ESP_MAC_WIFI_STA);
+  esp_wifi_get_mac(WIFI_IF_STA, mymac);
   String macStr = macToString(mymac);
 
   // Build JSON
@@ -335,7 +335,7 @@ void setup() {
   if (esp_now_init() != ESP_OK) {
     Serial.println("esp_now_init failed");
   }
-  esp_now_register_recv_cb(onDataRecv);
+  esp_now_register_recv_cb((esp_now_recv_cb_t)onDataRecv);
   esp_now_register_send_cb(onDataSent);
 
   // set PMK if defined
