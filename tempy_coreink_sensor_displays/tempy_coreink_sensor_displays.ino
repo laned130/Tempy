@@ -1,7 +1,7 @@
 /* tempy_coreink_pairing_secure.ino
    CoreInk thermostat:
    - SHT40 high precision
-   - Pairing via WiFi (hold BtnB during boot to pair)
+   - Pairing via WiFi (hold BtnMID during boot to pair)
    - Generates LMK on pairing; POSTs to Atom pairing endpoint
    - Uses PMK + per-peer LMK for ESP-NOW encryption after pairing
    - Includes 32-bit message counters for replay protection
@@ -323,7 +323,7 @@ void setup() {
 
   // If button B held at boot -> pairing mode
   M5.update();
-  bool pairingPressed = M5.BtnB.isPressed(); // hold while powering
+  bool pairingPressed = M5.BtnMID.isPressed(); // hold while powering
   if (pairingPressed) {
     if (doPairingProcedure()) {
       // after pairing, init ESP-NOW with keys
@@ -413,7 +413,7 @@ void goToSleep() {
 void loop() {
   M5.update();
 
-  bool anyPressed = M5.BtnA.wasPressed() || M5.BtnB.wasPressed() || M5.BtnC.wasPressed();
+  bool anyPressed = M5.BtnUP.wasPressed() || M5.BtnMID.wasPressed() || M5.BtnDOWN.wasPressed();
   if (anyPressed) {
     if (!inSetpointMode) {
       inSetpointMode = true;
@@ -438,8 +438,8 @@ void loop() {
     } else {
       // already in setpoint mode: adjust
       bool changed = false;
-      if (M5.BtnA.wasPressed()) { targetTemp--; changed = true; }
-      if (M5.BtnC.wasPressed()) { targetTemp++; changed = true; }
+      if (M5.BtnUP.wasPressed()) { targetTemp--; changed = true; }
+      if (M5.BtnDOWN.wasPressed()) { targetTemp++; changed = true; }
       if (changed) {
         // persist target
         prefs.begin("tempy", false);

@@ -8,6 +8,8 @@ See Wiki for details :-)
 
 
 
+Copy secrets.h.template to secrets.h and populate it with the relevant information.
+
 Create symbolic links for secrets.h in tempy_atom_relays\secrets.h and tempy_coreink_sensor_displays\secrets.h
 
 From the Tempy directory:
