@@ -11,7 +11,7 @@
 */
 
 #include "secrets.h"
-#include <M5CoreInk.h>
+#include <M5Unified.h>
 #include <Adafruit_SHT4x.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
@@ -19,7 +19,9 @@
 #include <esp_wifi.h>
 #include <Preferences.h>
 
-Ink_Sprite inkSprite(&M5.M5Ink);
+M5Canvas inkSprite(&M5.Display);
+static constexpr uint16_t COLOR_WHITE = 0xFFFF;
+static constexpr uint16_t COLOR_BLACK = 0x0000;
 
 // ---------- CONFIG ----------
 #define SETPOINT_DEFAULT 20
@@ -284,11 +286,12 @@ bool doPairingProcedure() {
 // ---------- Setup & Loop ----------
 void setup() {
   Serial.begin(115200);
-  M5.begin();
-  M5.M5Ink.begin();
-  M5.M5Ink.clear();
-  inkSprite.creatSprite(0,0,250,300);
-  inkSprite.clear();
+  auto cfg = M5.config();
+  M5.begin(cfg);
+  M5.Display.setEpdMode(epd_mode_t::epd_fast);
+  inkSprite.createSprite(M5.Display.width(), M5.Display.height());
+  inkSprite.fillSprite(COLOR_WHITE);
+  inkSprite.setTextColor(COLOR_BLACK);
 
   // prefs load
   prefs.begin("pair", false);
@@ -370,8 +373,9 @@ void setup() {
 
   // initial display
   // draw normal screen
-  M5.M5Ink.clear();
-  inkSprite.clear();
+  M5.Display.fillScreen(COLOR_WHITE);
+  inkSprite.fillSprite(COLOR_WHITE);
+  inkSprite.setTextColor(COLOR_BLACK);
   inkSprite.setTextSize(6);
   if (!isnan(temperatureVal)) inkSprite.printf("%.1fC", temperatureVal);
   else inkSprite.printf("--.-C");
@@ -397,7 +401,7 @@ void setup() {
   inkSprite.setTextSize(2);
   inkSprite.printf("%c", c);
 
-  inkSprite.pushSprite();
+  inkSprite.pushSprite(0, 0);
   delay(200);
 }
 
@@ -415,10 +419,9 @@ void loop() {
       inSetpointMode = true;
       setpointStartMs = millis();
       // show inverted setpoint
-      M5.M5Ink.clear();
-      inkSprite.clear();
-      inkSprite.fillRect(0,0,250,300,BLACK);
-      inkSprite.setTextColor(WHITE, BLACK);
+      M5.Display.fillScreen(COLOR_WHITE);
+      inkSprite.fillSprite(COLOR_BLACK);
+      inkSprite.setTextColor(COLOR_WHITE, COLOR_BLACK);
       inkSprite.setTextSize(3);
       inkSprite.setCursor(10,30);
       inkSprite.printf("Set Target");
@@ -428,8 +431,8 @@ void loop() {
       inkSprite.setTextSize(2);
       inkSprite.setCursor(10,200);
       inkSprite.printf("A = -1C  C = +1C");
-      inkSprite.pushSprite();
-      inkSprite.setTextColor(BLACK, WHITE);
+      inkSprite.pushSprite(0, 0);
+      inkSprite.setTextColor(COLOR_BLACK, COLOR_WHITE);
       // query heating while in setpoint mode
       if (haveLMK) requestHeatingStateWait(HEATING_REPLY_TIMEOUT_MS);
     } else {
@@ -445,15 +448,14 @@ void loop() {
         // send update and ask for heating state
         if (haveLMK) sendTargetUpdateAndQuery();
         // refresh setpoint screen
-        M5.M5Ink.clear();
-        inkSprite.clear();
-        inkSprite.fillRect(0,0,250,300,BLACK);
-        inkSprite.setTextColor(WHITE, BLACK);
+        M5.Display.fillScreen(COLOR_WHITE);
+        inkSprite.fillSprite(COLOR_BLACK);
+        inkSprite.setTextColor(COLOR_WHITE, COLOR_BLACK);
         inkSprite.setTextSize(6);
         inkSprite.setCursor(10,80);
         inkSprite.printf("%dC", targetTemp);
-        inkSprite.pushSprite();
-        inkSprite.setTextColor(BLACK, WHITE);
+        inkSprite.pushSprite(0, 0);
+        inkSprite.setTextColor(COLOR_BLACK, COLOR_WHITE);
       }
       setpointStartMs = millis();
     }
@@ -470,8 +472,9 @@ void loop() {
       temperatureVal = t.temperature;
       humidityVal = h.relative_humidity;
       // display
-      M5.M5Ink.clear();
-      inkSprite.clear();
+      M5.Display.fillScreen(COLOR_WHITE);
+      inkSprite.fillSprite(COLOR_WHITE);
+      inkSprite.setTextColor(COLOR_BLACK, COLOR_WHITE);
       inkSprite.setTextSize(6);
       inkSprite.setCursor(10,40);
       inkSprite.printf("%.1fC", temperatureVal);
@@ -493,7 +496,7 @@ void loop() {
       else if (heatingActive) c = 'H';
       inkSprite.setTextSize(2);
       inkSprite.printf("%c", c);
-      inkSprite.pushSprite();
+      inkSprite.pushSprite(0, 0);
       delay(200);
       goToSleep();
     } else {

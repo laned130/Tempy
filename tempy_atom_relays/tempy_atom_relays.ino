@@ -34,12 +34,14 @@ uint8_t thermMacs[N_THERM][6];
 uint8_t lmks[N_THERM][16];
 bool peerConfigured[N_THERM];
 
+uint32_t atomSendCounter = 0;
+uint32_t lastRecvCounter[N_THERM];
+
 // relay pin mapping - adjust to your wiring
 int relayPins[N_THERM] = {12,13,14,15,16}; // TODO: set your real pins
 
 int lastTargets[N_THERM];
 bool relayState[N_THERM];
-uint32_t lastRecvCounter[N_THERM];
 
 // PMK must match thermostats
 static const uint8_t LOCAL_PMK[16] = {
@@ -100,6 +102,12 @@ void persistPeer(int idx) {
   prefs.end();
 }
 
+void persistSendCounter() {
+  prefs.begin("counters", false);
+  prefs.putUInt("c_s", atomSendCounter);
+  prefs.end();
+}
+
 // ---------- ESP-NOW callbacks ----------
 void sendHeatingStateTo(const uint8_t *peerMac, uint8_t peerId) {
   esp_msg_t out = {};
@@ -107,10 +115,10 @@ void sendHeatingStateTo(const uint8_t *peerMac, uint8_t peerId) {
   out.id = peerId;
   out.target = (int8_t)lastTargets[peerId];
   out.heating = relayState[peerId] ? 1 : 0;
-  // include counter? not needed for reply but include for monotonicity from Atom to thermostat
-  static uint32_t localSendCounter = 0;
-  localSendCounter++;
-  out.counter = localSendCounter;
+  // include counter for monotonicity from Atom to thermostats
+  atomSendCounter++;
+  persistSendCounter();
+  out.counter = atomSendCounter;
   esp_now_send((uint8_t*)peerMac, (uint8_t*)&out, sizeof(out));
 }
 
@@ -348,14 +356,30 @@ void setup() {
       memset(lmks[i], 0, 16);
       peerConfigured[i] = false;
     }
-    String targetKey = prefKey("t", i);
-    String counterKey = prefKey("c_r", i);
-    lastTargets[i] = prefs.getInt(targetKey.c_str(), 20);
-    lastRecvCounter[i] = prefs.getUInt(counterKey.c_str(), 0);
+    lastTargets[i] = 20; // will load actual target from "tempy" namespace below
+    lastRecvCounter[i] = 0; // will load from "counters" namespace below
     relayState[i] = false;
     pinMode(relayPins[i], OUTPUT);
     digitalWrite(relayPins[i], LOW);
   }
+  prefs.end();
+
+  // Load target temps
+  prefs.begin("tempy", false);
+  for (int i=0;i<N_THERM;i++) {
+    String targetKey = prefKey("t", i);
+    lastTargets[i] = prefs.getInt(targetKey.c_str(), 20);
+  }
+  prefs.end();
+
+  // Load counters (send + per-peer receive) from correct namespace
+  prefs.begin("counters", false);
+  atomSendCounter = prefs.getUInt("c_s", 0);
+  for (int i=0;i<N_THERM;i++) {
+    String counterKey = prefKey("c_r", i);
+    lastRecvCounter[i] = prefs.getUInt(counterKey.c_str(), 0);
+  }
+  prefs.end();
 
   // init ESP-NOW
   WiFi.mode(WIFI_STA);
